@@ -1,0 +1,28 @@
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-sm-12">
+            </div>
+          </div>
+          <button (click)="clearSelection()">Clear Selection</button>
+            <ag-grid-angular
+            class="ag-theme-alpine"
+            style="height:80%; width: 100%;"
+            [rowData]="rowData$ | async"
+            [columnDefs]="colDefs"
+            (cellClicked)="onCellClicked($event)"
+            [rowSelection]="'multiple'"
+            [pagination]="true"
+            [paginationAutoPageSize]="true"
+            [singleClickEdit]="true"
+            [gridOptions]="gridOptions"
+             >
+            </ag-grid-angular>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
