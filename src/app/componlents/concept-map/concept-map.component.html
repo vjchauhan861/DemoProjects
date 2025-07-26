@@ -1,108 +1,153 @@
-<div class="mindmap-wrapper">
-  <!-- Color Picker Toolbar -->
-  <div class="color-toolbar">
-    <label>Node Color:</label>
+<div class="map-container" (mousemove)="onMouseMove($event)" (mouseup)="onMouseUp()">
+  <!-- Color Palette at Top -->
+  <div class="color-palette">
     <div class="color-options">
-      <div 
-        *ngFor="let color of colorOptions" 
-        class="color-swatch"
-        [style.background-color]="color.value"
-        [class.active]="selectedColor === color.value"
-        (click)="selectColor(color.value)"
-        [title]="color.name"
-      ></div>
-      <input 
-        type="color" 
-        [(ngModel)]="selectedColor"
-        (change)="onColorChange()"
-        class="custom-color-picker"
-        title="Custom Color"
-      >
+      <div *ngFor="let color of presetColors" 
+           class="color-option" 
+           [style.background-color]="color"
+           [class.active]="selectedColor === color"
+           (click)="selectColor(color)">
+      </div>
+      <div class="custom-color-wrapper">
+        <input type="color" 
+               [(ngModel)]="customColor" 
+               (change)="selectColor(customColor)"
+               class="custom-color-picker" />
+      </div>
     </div>
-    <span class="instruction">Select a color, then click a node to apply</span>
   </div>
 
-  <div
-    class="map-container"
-    (mousemove)="onMouseMove($event)"
-    (mouseup)="onMouseUp()"
-    (click)="clearContextMenu()"
-  >
-  <!-- SVG Curved Lines -->
+  <!-- Save/Load Panel -->
+  <div class="save-panel" *ngIf="showSavePanel">
+    <div class="panel-header">
+      <h3>Save Layout</h3>
+      <button class="close-btn" (click)="showSavePanel = false">×</button>
+    </div>
+    <div class="panel-content">
+      <input type="text" 
+             [(ngModel)]="saveLayoutName" 
+             placeholder="Enter layout name..."
+             class="layout-name-input"
+             (keydown.enter)="saveLayout()">
+      <div class="panel-buttons">
+        <button class="save-confirm-btn" (click)="saveLayout()">Save</button>
+        <button class="cancel-btn" (click)="showSavePanel = false">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Panel -->
+  <div class="load-panel" *ngIf="showLoadPanel">
+    <div class="panel-header">
+      <h3>Load Layout</h3>
+      <button class="close-btn" (click)="showLoadPanel = false">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="saved-layouts" *ngIf="savedLayouts.length > 0">
+        <div *ngFor="let layout of savedLayouts" class="layout-item">
+          <div class="layout-info">
+            <div class="layout-name">{{ layout.name }}</div>
+            <div class="layout-date">{{ formatDate(layout.timestamp) }}</div>
+          </div>
+          <div class="layout-actions">
+            <button class="load-btn" (click)="loadLayout(layout)">Load</button>
+            <button class="delete-btn" (click)="deleteLayout(layout)">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="no-layouts" *ngIf="savedLayouts.length === 0">
+        No saved layouts found
+      </div>
+    </div>
+  </div>
+
+  <!-- SVG for curved lines -->
   <svg class="map-lines">
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <feMerge> 
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
     <ng-container *ngFor="let child of nodes[0]?.children">
-      <path
-        [attr.d]="generatePath(nodes[0], child)"
-        stroke="#4caf50"
-        fill="transparent"
-        stroke-width="2"
-      />
+      <!-- Connection path with gradient -->
+      <defs>
+        <linearGradient [id]="'gradient-' + child.id" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" [attr.stop-color]="nodes[0].color || '#667eea'" stop-opacity="0.8"/>
+          <stop offset="100%" [attr.stop-color]="child.color || selectedColor" stop-opacity="0.8"/>
+        </linearGradient>
+      </defs>
+      <path [attr.d]="generatePath(nodes[0], child)" 
+            [attr.stroke]="'url(#gradient-' + child.id + ')'" 
+            fill="transparent"
+            stroke-width="3" 
+            filter="url(#glow)"/>
     </ng-container>
   </svg>
 
-    <!-- SVG Curved Lines -->
-    <svg class="map-lines">
-      <ng-container *ngFor="let child of nodes[0]?.children">
-        <path
-          [attr.d]="generatePath(nodes[0], child)"
-          stroke="#4caf50"
-          fill="transparent"
-          stroke-width="2"
-        />
-      </ng-container>
-    </svg>
-
-    <!-- Root Node -->
-    <div
-      class="node root-node"
-      [style.left.px]="nodes[0]?.x"
-      [style.top.px]="nodes[0]?.y"
-      [style.background-color]="nodes[0]?.color || '#4caf50'"
-      (dblclick)="startEditing(nodes[0])"
-      (click)="applyColorToNode(nodes[0], $event)"
-    >
-    <input 
-      *ngIf="editingNode === nodes[0]"
-      [(ngModel)]="nodes[0].title"
-      (blur)="stopEditing()"
-      (keydown.enter)="stopEditing()"
-      (keydown.escape)="cancelEditing()"
-      #editInput
-      class="edit-input"
-    />
-    <span *ngIf="editingNode !== nodes[0]">{{ nodes[0]?.title }}</span>
+  <!-- Root Node -->
+  <div class="node root-node" 
+       [class.selected]="selectedColorNode === nodes[0]"
+       [style.left.px]="nodes[0]?.x" 
+       [style.top.px]="nodes[0]?.y"
+       [style.background]="getNodeGradient(nodes[0].color || '#667eea')"
+       (mousedown)="onMouseDown($event, nodes[0])"
+       (dblclick)="onNodeDoubleClick(nodes[0])"
+       (click)="selectNodeForColoring(nodes[0])">
+    
+    <!-- Selection ring -->
+    <div class="selection-ring" *ngIf="selectedColorNode === nodes[0]"></div>
+    
+    <ng-container *ngIf="!nodes[0]?.editing">
+      {{ nodes[0]?.title }}
+    </ng-container>
+    <input *ngIf="nodes[0]?.editing" 
+           [(ngModel)]="nodes[0].title" 
+           (blur)="nodes[0].editing = false"
+           (keydown.enter)="nodes[0].editing = false" 
+           autofocus />
   </div>
 
-    <!-- Draggable Child Nodes -->
-    <div
-      *ngFor="let child of nodes[0]?.children"
-      class="node child-node"
-      [style.left.px]="child.x"
-      [style.top.px]="child.y"
-      [style.background-color]="child.color || '#e8f5e8'"
-      (mousedown)="onMouseDown($event, child)"
-      (click)="onChildClick($event, child)"
-      (dblclick)="startEditing(child)"
-    >
-    <input 
-      *ngIf="editingNode === child"
-      [(ngModel)]="child.title"
-      (blur)="stopEditing()"
-      (keydown.enter)="stopEditing()"
-      (keydown.escape)="cancelEditing()"
-      #editInput
-      class="edit-input"
-    />
-    <span *ngIf="editingNode !== child">{{ child.title }}</span>
+  <!-- Draggable Child Nodes -->
+  <div *ngFor="let child of nodes[0]?.children" 
+       class="node child-node" 
+       [class.selected]="selectedColorNode === child"
+       [style.left.px]="child.x"
+       [style.top.px]="child.y" 
+       [style.background]="getNodeGradient(child.color || selectedColor)"
+       (mousedown)="onMouseDown($event, child)" 
+       (dblclick)="onNodeDoubleClick(child)"
+       (click)="selectNodeForColoring(child)">
+    
+    <!-- Selection ring -->
+    <div class="selection-ring" *ngIf="selectedColorNode === child"></div>
+    
+    <ng-container *ngIf="!child.editing">
+      {{ child.title }}
+    </ng-container>
+    <input *ngIf="child.editing" 
+           [(ngModel)]="child.title" 
+           (blur)="child.editing = false"
+           (keydown.enter)="child.editing = false" 
+           autofocus />
+  </div>
 
-      <!-- Context Menu -->
-      <div
-        class="context-menu"
-        *ngIf="selectedChild === child"
-        (click)="duplicateChild(child, $event)"
-      >
-        ➕ Duplicate
-      </div>
-    </div>
+  <!-- Control Buttons -->
+  <div class="control-buttons">
+    <button class="control-btn load-layout-btn" (click)="showLoadPanel = true" title="Load Layout">
+      <i class='bx bx-folder-open'></i>
+    </button>
+    <button class="control-btn save-layout-btn" (click)="showSavePanel = true" title="Save Layout">
+      <i class='bx bx-save'></i>
+    </button>
+    <button class="control-btn rearrange-btn" (click)="rearrangeNodes()" title="Reset Layout">
+      <i class='bx bx-refresh'></i>
+    </button>
+    <button class="control-btn add-btn" (click)="addNewNode()" title="Add New Node">
+      <span class="icon">+</span>
+    </button>
   </div>
 </div>
