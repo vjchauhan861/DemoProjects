@@ -1,0 +1,108 @@
+<div class="mindmap-wrapper">
+  <!-- Color Picker Toolbar -->
+  <div class="color-toolbar">
+    <label>Node Color:</label>
+    <div class="color-options">
+      <div 
+        *ngFor="let color of colorOptions" 
+        class="color-swatch"
+        [style.background-color]="color.value"
+        [class.active]="selectedColor === color.value"
+        (click)="selectColor(color.value)"
+        [title]="color.name"
+      ></div>
+      <input 
+        type="color" 
+        [(ngModel)]="selectedColor"
+        (change)="onColorChange()"
+        class="custom-color-picker"
+        title="Custom Color"
+      >
+    </div>
+    <span class="instruction">Select a color, then click a node to apply</span>
+  </div>
+
+  <div
+    class="map-container"
+    (mousemove)="onMouseMove($event)"
+    (mouseup)="onMouseUp()"
+    (click)="clearContextMenu()"
+  >
+  <!-- SVG Curved Lines -->
+  <svg class="map-lines">
+    <ng-container *ngFor="let child of nodes[0]?.children">
+      <path
+        [attr.d]="generatePath(nodes[0], child)"
+        stroke="#4caf50"
+        fill="transparent"
+        stroke-width="2"
+      />
+    </ng-container>
+  </svg>
+
+    <!-- SVG Curved Lines -->
+    <svg class="map-lines">
+      <ng-container *ngFor="let child of nodes[0]?.children">
+        <path
+          [attr.d]="generatePath(nodes[0], child)"
+          stroke="#4caf50"
+          fill="transparent"
+          stroke-width="2"
+        />
+      </ng-container>
+    </svg>
+
+    <!-- Root Node -->
+    <div
+      class="node root-node"
+      [style.left.px]="nodes[0]?.x"
+      [style.top.px]="nodes[0]?.y"
+      [style.background-color]="nodes[0]?.color || '#4caf50'"
+      (dblclick)="startEditing(nodes[0])"
+      (click)="applyColorToNode(nodes[0], $event)"
+    >
+    <input 
+      *ngIf="editingNode === nodes[0]"
+      [(ngModel)]="nodes[0].title"
+      (blur)="stopEditing()"
+      (keydown.enter)="stopEditing()"
+      (keydown.escape)="cancelEditing()"
+      #editInput
+      class="edit-input"
+    />
+    <span *ngIf="editingNode !== nodes[0]">{{ nodes[0]?.title }}</span>
+  </div>
+
+    <!-- Draggable Child Nodes -->
+    <div
+      *ngFor="let child of nodes[0]?.children"
+      class="node child-node"
+      [style.left.px]="child.x"
+      [style.top.px]="child.y"
+      [style.background-color]="child.color || '#e8f5e8'"
+      (mousedown)="onMouseDown($event, child)"
+      (click)="onChildClick($event, child)"
+      (dblclick)="startEditing(child)"
+    >
+    <input 
+      *ngIf="editingNode === child"
+      [(ngModel)]="child.title"
+      (blur)="stopEditing()"
+      (keydown.enter)="stopEditing()"
+      (keydown.escape)="cancelEditing()"
+      #editInput
+      class="edit-input"
+    />
+    <span *ngIf="editingNode !== child">{{ child.title }}</span>
+
+      <!-- Context Menu -->
+      <div
+        class="context-menu"
+        *ngIf="selectedChild === child"
+        (click)="duplicateChild(child, $event)"
+      >
+        ➕ Duplicate
+      </div>
+    </div>
+  </div>
+</div>
